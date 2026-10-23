@@ -1,0 +1,5 @@
+# keep the ring pack byte-for-byte (the SHA256 in optional-ring/README.txt is of these exact files)
+optional-ring/worlddraw.lua -text
+optional-ring/*.dll -text
+*.png binary
+*.gif binary

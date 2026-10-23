@@ -1,5 +1,5 @@
 -- =============================================================================
--- ChainGuide.lua : a skillchain guide for Windower 4 (v0.1.0, English edition)
+-- ChainGuide.lua : a skillchain guide for Windower 4 (v0.2.0, English edition)
 -- =============================================================================
 -- Purpose:
 -- Show, on a small HUD, the skillchain that is currently resonating on your target, how long its window has left,
@@ -25,7 +25,7 @@
 
 _addon.name     = "ChainGuide"
 _addon.author   = "hikaruoshino"
-_addon.version  = "0.1.0"
+_addon.version  = "0.2.0"
 _addon.commands = {"chainguide", "cgd"}
 
 local config  = require("config")
@@ -45,6 +45,11 @@ defaults.openers = true       -- when no chain is active, list your weapon skill
 defaults.bar = true           -- show the colored bar
 defaults.bar_width = 220
 defaults.bar_height = 12
+defaults.label_angle = 15   -- where the element name sits on the ring, in degrees from the side facing you (negative = toward your left)
+defaults.ring_scale = 1.0   -- ring size, x. The mouse wheel changes it while //cgd ringtest is on
+defaults.label_scale = 1.5  -- size of the chain name
+defaults.label_height = 0.15 -- height of the chain name above the middle of the band
+defaults.ring = true          -- also draw a ring at the enemy's feet with ffxi_world_draw, if libs/worlddraw is present
 defaults.min_tp = 1000        -- TP needed to use a weapon skill
 defaults.ws_reach = 3.5       -- distance (as shown by distanceplus) within which a melee weapon skill reaches
 defaults.pos = {x = 40, y = 330}
@@ -514,6 +519,126 @@ local function tick_bar(now)
     set_bar(property_color(chain.props[1], now), alpha)
 end
 
+-- OPTIONAL: rings at the enemy's feet, drawn in the 3D world with ffxi_world_draw (by Genoxd, 0BSD license).
+-- Needs the three files of the ring pack in libs/ (see README, "Optional: rings on the ground"); if they cannot be loaded, this part does nothing.
+-- If libs/worlddraw is missing or cannot draw, nothing happens.
+local wd_ok, wd = pcall(require, "libs.worlddraw")
+local ring = nil
+if wd_ok then
+    local ok, h = pcall(wd.new, "ChainGuide", {reset_on_zone = true})
+    if ok then ring = h end
+end
+local ring_last = nil   -- "id:color" of the last commit
+local ring_error_until = 0
+
+-- One ring per element of the skillchain, in fixed colors (no color cycling, no blinking, so two chains are not confused),
+-- and the NAME OF THE SKILLCHAIN (Fusion, Liquefaction, Impaction ...) written once beside them (libs/labels/<Chain>.png). (The element names are not written: the chain name is what you pick your next weapon skill by.) Dim until the window opens; then bright, fading out
+-- step by step until the window closes. Shown only for a real skillchain (step 1 or later), not for an opener.
+local label_tex = {}
+if ring then
+    for e in pairs(SC_ELEMENTS) do
+        local ok, tex = pcall(ring.load_texture, ring, windower.addon_path .. "libs/labels/" .. e .. ".png")
+        if ok and tex then label_tex[e] = tex end
+    end
+end
+local FADE_STEPS = 8
+local RING_DARK_EDGE = {170, 60, 255}   -- the edge color of the Dark ring
+local RING_COLORS = {Earth = {255, 220, 0}}   -- ring-only overrides: Earth as a clear yellow (the mustard of the bar can look green, like Wind)
+-- FFXI's vertical axis points DOWN (a bigger z is lower). Positive offsets put the rings under the ground, where the terrain hides them.
+local RING_LIFT = -0.6                  -- 0.6 above the ground, so uneven ground does not hide the rings
+local RING_WIDTH = 0.35                  -- the height of the band
+
+local function ring_alpha(now, c)
+    local open_at = c.t0 + SC_OPEN_SEC
+    if now < open_at then return 0x60 end
+    local span = math.max(0.1, c.expire - open_at)
+    local left = math.max(0, math.min(1, (c.expire - now) / span))
+    local step = math.ceil(left * FADE_STEPS) / FADE_STEPS          -- 1.0 .. 0.125 (few commits per chain)
+    return math.floor(0x30 + (0xE0 - 0x30) * step)
+end
+
+-- Draw the rings (one per element) and the chain name for the enemy with this id. Used by real chains and by the preview.
+local function draw_rings(id, name, alpha, radius, facing)
+    local info = SC_ELEMENTS[name]
+    if not info then return end
+    local label_rad = math.rad(num(settings.label_angle, 15))
+    local lscale = num(settings.label_scale, 1.5)
+    ring:begin()
+    if id then ring:anchor_actor(id) else ring:anchor_player() end
+    local a = alpha * 0x1000000
+    for k, element in ipairs(info.elements) do
+        local r = radius + (k - 1) * 0.45
+        if element == "Dark" then
+            -- Dark: a black band with thin colored edges (the light purple of the bar does not read as darkness)
+            local e = RING_DARK_EDGE
+            ring:ring(0, 0, RING_LIFT, r, RING_WIDTH, a)
+            ring:ring(0, 0, RING_LIFT, r - 0.1, 0.06, a + e[1] * 0x10000 + e[2] * 0x100 + e[3])
+            ring:ring(0, 0, RING_LIFT, r + 0.1, 0.06, a + e[1] * 0x10000 + e[2] * 0x100 + e[3])
+        else
+            local c = RING_COLORS[element] or ELEMENT_COLORS[element] or {200, 200, 200}
+            ring:ring(0, 0, RING_LIFT, r, RING_WIDTH, a + c[1] * 0x10000 + c[2] * 0x100 + c[3])
+        end
+    end
+    -- The chain name, once, on the first ring, on the side facing you turned by label_angle (so the enemy's head does not cover it)
+    local tex = label_tex[name]
+    if tex then
+        ring:screen_sprite(radius * math.cos(facing + label_rad), radius * math.sin(facing + label_rad),
+            RING_LIFT - RING_WIDTH / 2 - num(settings.label_height, 0.15), 150 * lscale, 28 * lscale, tex,
+            math.min(0xFF, alpha + 0x20) * 0x1000000 + 0xFFFFFF)
+    end
+    ring:commit()
+end
+
+local function base_radius(m)
+    return math.max(1.9, num(m and m.model_size, 2) * 0.75 + 0.775) * num(settings.ring_scale, 1)
+end
+
+-- The direction from the enemy (mob m) to you, in 16 steps; around your own feet (no enemy) your own heading
+local function facing_of(m)
+    local me = windower.ffxi.get_mob_by_target("me")
+    local ang = num(me and me.facing, 0)
+    if me and m and me.x and m.x then
+        ang = math.atan2(num(me.y, 0) - num(m.y, 0), num(me.x, 0) - num(m.x, 0))
+    end
+    return math.floor(ang / (math.pi / 8) + 0.5) * (math.pi / 8)
+end
+
+local ring_preview = nil   -- //cgd ringtest on [chain]: a ring that stays until //cgd ringtest off, to set the sizes and the label
+
+local function tick_ring(now)
+    if not ring then return end
+    local key, id, name, alpha, radius, facing = nil, nil, nil, nil, nil, 0
+    if ring_preview then
+        id = ring_preview.id
+        name = ring_preview.name
+        alpha = 0xE0
+        local m = id and windower.ffxi.get_mob_by_id(id) or windower.ffxi.get_mob_by_target("me")
+        radius = base_radius(m)
+        facing = facing_of(id and m or nil)
+        key = "preview:" .. tostring(id) .. ":" .. name .. ":" .. facing .. ":" .. radius .. ":" .. tostring(settings.label_angle)
+            .. ":" .. tostring(settings.label_scale) .. ":" .. tostring(settings.label_height)
+    else
+        local c = chain
+        if settings.ring and c and not c.test and c.step >= 1 and now < c.expire then
+            local t = windower.ffxi.get_mob_by_target("t")
+            id = c.target or (t and t.id)
+            if id and SC_ELEMENTS[c.props[1]] then
+                name = c.props[1]
+                alpha = ring_alpha(now, c)
+                local m = windower.ffxi.get_mob_by_id(id)
+                radius = base_radius(m)
+                facing = facing_of(m)
+                key = id .. ":" .. name .. ":" .. alpha .. ":" .. facing .. ":" .. radius .. ":" .. tostring(settings.label_angle)
+                    .. ":" .. tostring(settings.label_scale) .. ":" .. tostring(settings.label_height)
+            end
+        end
+    end
+    if key == ring_last then return end
+    ring_last = key
+    if not key then ring:clear() return end
+    draw_rings(id, name, alpha, radius, facing)
+end
+
 -- -----------------------------------------------------------------------------
 -- Events
 -- -----------------------------------------------------------------------------
@@ -530,6 +655,11 @@ end
 windower.register_event("prerender", function()
     local now = os.clock()
     pcall(tick_bar, now)
+    local rok, rerr = pcall(tick_ring, now)
+    if not rok and now >= (ring_error_until or 0) then
+        ring_error_until = now + 10
+        chat("[ChainGuide] ring error: " .. tostring(rerr):match("^[^\n]*"), 123)
+    end
     if now < next_refresh then return end   -- the text is rebuilt only every REFRESH_SEC
     next_refresh = now + REFRESH_SEC
     local ok, err = pcall(refresh, now)
@@ -544,6 +674,13 @@ windower.register_event("incoming chunk", function(id, data)
     local ok, err = pcall(on_action, data)
     if not ok then chat("[ChainGuide] packet error: " .. tostring(err):match("^[^\n]*"), 123) end
 end)
+
+-- The resource files (items is large) are read the first time they are used, which made the first weapon draw stutter.
+-- Read them when the addon loads instead (at login), so the stutter does not happen during a fight.
+local function preload_resources()
+    local _ = res.items and res.weapon_skills and res.monster_abilities
+end
+pcall(preload_resources)
 
 windower.register_event("zone change", function()
     clear_chain()
@@ -567,6 +704,7 @@ windower.register_event("unload", function()
     config.save(settings)
     if hud then hud:destroy() end
     if bar then bar:destroy() end
+    if ring then pcall(ring.clear, ring) end
 end)
 
 
@@ -588,6 +726,13 @@ end
 windower.register_event("mouse", function(mtype, x, y, delta, blocked)
     if blocked or mtype ~= MOUSE_WHEEL then return end
     local ok, result = pcall(function()
+        if ring_preview and not (hud:visible() and hud:hover(x, y)) then
+            -- Windower has no world-to-screen conversion, so the ring cannot be picked with a drag; the wheel resizes it instead
+            local step = num(delta, 0) > 0 and 0.05 or -0.05
+            settings.ring_scale = math.max(0.5, math.min(3, math.floor((num(settings.ring_scale, 1) + step) * 100 + 0.5) / 100))
+            config.save(settings)
+            return true
+        end
         if not hud:visible() or not hud:hover(x, y) then return nil end
         local step = num(delta, 0) > 0 and 1 or -1
         set_size(num(hud:size(), num(settings.text and settings.text.size, 11)) + step)
@@ -614,6 +759,10 @@ local function print_help()
     chat("[ChainGuide] //cgd bar [on|off]        : the colored bar")
     chat("[ChainGuide] //cgd pos <x> <y> / size <n> : position / text size")
     chat("[ChainGuide] //cgd test                : show a sample chain for 12 s (to check the display)")
+    chat("[ChainGuide] //cgd ring [on|off]       : the rings on the ground (needs the optional ring pack in libs/)")
+    chat("[ChainGuide] //cgd ringtest on [chain]|off : a ring that stays, to set its look (mouse wheel = size)")
+    chat("[ChainGuide] //cgd ringsize <x> / labelangle <deg> / labelsize <x> / labelheight <n> : ring size, chain name position / size / height")
+    chat("[ChainGuide] //cgd ringstatus          : is the ring library loaded, and its last message")
     chat("[ChainGuide] //cgd status              : current settings")
     chat("[ChainGuide] This addon only shows information. It never uses a weapon skill for you.")
 end
@@ -623,6 +772,7 @@ windower.register_event("addon command", function(cmd, ...)
         local args = {...}
         cmd = cmd and cmd:lower() or "help"
         local a1 = args[1] and args[1]:lower()
+        local a2 = args[2] and args[2]:lower()
         if cmd == "on" or cmd == "off" then
             settings.show = (cmd == "on")
             config.save(settings)
@@ -640,6 +790,48 @@ windower.register_event("addon command", function(cmd, ...)
             settings.openers = on_off(a1, settings.openers)
             config.save(settings)
             chat("[ChainGuide] openers list: " .. (settings.openers and "on" or "off"))
+        elseif cmd == "labelangle" and tonumber(a1) then
+            settings.label_angle = math.max(-180, math.min(180, tonumber(a1)))
+            config.save(settings)
+            chat("[ChainGuide] label angle: " .. settings.label_angle .. " (negative = toward your left, positive = right)")
+        elseif cmd == "labelsize" and tonumber(a1) then
+            settings.label_scale = math.max(0.3, math.min(4, tonumber(a1)))
+            config.save(settings)
+            chat("[ChainGuide] label size: x" .. settings.label_scale .. " (1 = normal)")
+        elseif cmd == "labelheight" and tonumber(a1) then
+            settings.label_height = math.max(-1.5, math.min(2.5, tonumber(a1)))
+            config.save(settings)
+            chat("[ChainGuide] label height: " .. settings.label_height .. " (bigger = higher above the band; 0.15 = default)")
+        elseif cmd == "ringsize" and tonumber(a1) then
+            settings.ring_scale = math.max(0.5, math.min(3, tonumber(a1)))
+            config.save(settings)
+            chat("[ChainGuide] ring size: x" .. settings.ring_scale .. " (1 = normal; the mouse wheel does this while the preview is on)")
+        elseif cmd == "ringtest" then
+            -- //cgd ringtest on [chain name]  : a ring that stays (around your target, or around you) until //cgd ringtest off.
+            -- Turn the wheel with the cursor off the HUD to change the ring size; //cgd labelangle / labelsize / labelheight move the name.
+            if not ring then chat("[ChainGuide] libs/worlddraw is not loaded", 123) return end
+            if a1 == "off" or (ring_preview and a1 == nil) then
+                ring_preview = nil
+                ring_last = nil
+                ring:clear()   -- (tick_ring would skip it: with no chain the key and ring_last are both nil)
+                chat("[ChainGuide] ring preview: off")
+            else
+                local name = "Fusion"
+                for k in pairs(SC_ELEMENTS) do
+                    if (a2 or a1 or ""):lower() == k:lower() then name = k end
+                end
+                local t = windower.ffxi.get_mob_by_target("t")
+                ring_preview = {id = t and t.id or nil, name = name}
+                ring_last = nil
+                chat("[ChainGuide] ring preview: on (" .. name .. ", " .. (t and "around your target" or "around you") .. "). Wheel = size, //cgd ringtest off = off")
+            end
+        elseif cmd == "ringstatus" then
+            chat("[ChainGuide] ring: " .. tostring(ring ~= nil) .. " / last_error: " .. tostring(ring and ring:last_error() or "-")
+                .. " / engine: " .. tostring(ring and ring:engineering_error() or "-"))
+        elseif cmd == "ring" then
+            settings.ring = on_off(a1, settings.ring)
+            config.save(settings)
+            chat("[ChainGuide] ring: " .. (settings.ring and "on" or "off") .. (ring and "" or " (libs/worlddraw not loaded)"))
         elseif cmd == "bar" then
             settings.bar = on_off(a1, settings.bar)
             config.save(settings)
