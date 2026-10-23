@@ -42,7 +42,7 @@ When a chain lands, rings appear on the ground around the enemy, and the **name 
 
 You can set the look while you watch it:
 
-<img src="images/ring-adjust.gif" alt="Showing a ring with //cgd ringtest on, then moving and enlarging the chain name with labelangle and labelsize">
+<img src="images/ring-adjust.gif" alt="Showing a ring with //cgd ringtest on, changing its size with the mouse wheel, then moving and enlarging the chain name with labelangle and labelsize">
 
 - `//cgd ringtest on [chain name]` shows a ring that stays (around your target, or around you) until `//cgd ringtest off`. For example `//cgd ringtest on Gravitation`.
 - While it is on, **turn the mouse wheel** (with the cursor off the HUD) to change the ring size. (The ring cannot be picked with a drag: Windower cannot tell where something in the 3D world is on the screen.)
