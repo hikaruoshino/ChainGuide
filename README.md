@@ -27,6 +27,7 @@ Your weapon skills that chain:
 - **The bar** above the HUD takes the color of the chain's element (Fire red, Ice light blue, Wind green, Earth yellow, Thunder purple, Water blue, Light white, Dark violet). A chain with several elements (for example Fusion = Fire + Light) cycles through its colors.
 - **WAIT / GO.** For the first 3 seconds or so after a weapon skill lands, the bar is solid and the HUD says WAIT: a weapon skill used now does not chain. Then the HUD says GO and the bar blinks, faster and faster as the window closes.
 - **The list** has only your weapon skills that continue the current chain, best first (a weapon skill you can use right now comes first; then higher chain level). Ones you cannot use right now are dimmed, with the reason: `(TP)` not enough TP, `(range)` too far to reach.
+- **All weapon types.** There is no weapon list inside the addon: your usable weapon skills and their chain properties are read from Windower's resources, so it works for every weapon type and job that has chainable weapon skills (weapon skills that do not chain, such as Starlight or Spirits Within, are not listed). I have only tried it in game with a few weapons so far.
 - **Aeonic weapons:** if you wield an aeonic weapon, its Light/Darkness property is counted.
 - **While there is no chain** it lists your weapon skills and their properties, to help you pick an opener.
 - **After a Light -> Light or Darkness -> Darkness chain**, or a Radiance/Umbra chain, it says the chain is complete: nothing chains after that.
