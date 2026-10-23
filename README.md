@@ -62,6 +62,10 @@ It needs only Windower's standard libraries (`config`, `texts`, `images`, `resou
 - A trust or monster move that has no chain property in Windower's resources is not recognized as an opener. Chainbound, pet skills and blood pacts are not covered yet.
 - Using Windower is not permitted by the FFXI Terms of Service. I cannot guarantee that this addon is allowed or that it will not be detected. Use it at your own risk; the author accepts no responsibility for any consequences.
 
+## Feedback
+
+If you try it and something could be better, please tell me (open an issue on this repository, or reply on FFXIAH). I will fix what I can.
+
 ## License
 
 MIT License. See `LICENSE`.
