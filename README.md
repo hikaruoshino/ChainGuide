@@ -112,3 +112,7 @@ If you try it and something could be better, please tell me (open an issue on th
 MIT License. See `LICENSE`.
 
 The optional ring pack in `optional-ring/` is [ffxi_world_draw](https://github.com/genoxd/ffxi_world_draw) by Genoxd, under the 0BSD license (built from its source; see `optional-ring/README.txt`). The pictures in `libs/labels/` and `images/` are part of this project.
+
+## Feedback
+
+A one-line "it works" is welcome too. With a GitHub account you can post from [Issues](../../issues/new/choose).
