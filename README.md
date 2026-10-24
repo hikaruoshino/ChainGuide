@@ -105,14 +105,10 @@ It needs only Windower's standard libraries (`config`, `texts`, `images`, `resou
 
 ## Feedback
 
-If you try it and something could be better, please tell me (open an issue on this repository, or reply on FFXIAH). I will fix what I can.
+If you try it and something could be better, please tell me. A one-line "it works" is welcome too. Questions and quick reports go to [Discussions](../../discussions); bugs go to [Issues](../../issues/new/choose). Replies on FFXIAH are fine as well. I will fix what I can.
 
 ## License
 
 MIT License. See `LICENSE`.
 
 The optional ring pack in `optional-ring/` is [ffxi_world_draw](https://github.com/genoxd/ffxi_world_draw) by Genoxd, under the 0BSD license (built from its source; see `optional-ring/README.txt`). The pictures in `libs/labels/` and `images/` are part of this project.
-
-## Feedback
-
-A one-line "it works" is welcome too. With a GitHub account you can post from [Issues](../../issues/new/choose).

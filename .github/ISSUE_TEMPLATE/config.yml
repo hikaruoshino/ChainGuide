@@ -1,1 +1,5 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Questions & "it works" reports
+    url: https://github.com/hikaruoshino/ChainGuide/discussions
+    about: Questions and quick reports (no bug needed) go here / 質問や「動きました」の一言はこちら
