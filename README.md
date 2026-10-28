@@ -1,4 +1,4 @@
-# ChainGuide (v0.2.0)
+# ChainGuide (v0.2.1)
 
 **A skillchain guide for Windower 4 (FINAL FANTASY XI). It shows information only. It never uses a weapon skill for you.**
 
@@ -10,7 +10,7 @@ ChainGuide watches the weapon skills used on your target and shows, on a small H
 
 You choose and press the weapon skill yourself. ChainGuide does not send any command to the game (no `input /ws`, no macros, no key presses).
 
-> **v0.2.0: lightly tested.** It passes 37 checks in a simulated Windower environment, and I have used it in game (display, bar, dragging and the mouse wheel worked; the optional rings worked in a number of fights), but on the Japanese client only. I have not tested it on the English client, nor with every job and weapon. The timing numbers are guides, not exact. Please report anything that looks wrong.
+> **v0.2.1: lightly tested.** It passes 37 checks in a simulated Windower environment, and I have used it in game (display, bar, dragging and the mouse wheel worked; the optional rings worked in a number of fights), but on the Japanese client only. I have not tested it on the English client, nor with every job and weapon. The timing numbers are guides, not exact. Please report anything that looks wrong.
 
 ## What it shows
 

@@ -1,5 +1,5 @@
 -- =============================================================================
--- ChainGuide.lua : a skillchain guide for Windower 4 (v0.2.0, English edition)
+-- ChainGuide.lua : a skillchain guide for Windower 4 (v0.2.1, English edition)
 -- =============================================================================
 -- Purpose:
 -- Show, on a small HUD, the skillchain that is currently resonating on your target, how long its window has left,
@@ -25,7 +25,7 @@
 
 _addon.name     = "ChainGuide"
 _addon.author   = "hikaruoshino"
-_addon.version  = "0.2.0"
+_addon.version  = "0.2.1"
 _addon.commands = {"chainguide", "cgd"}
 
 local config  = require("config")
@@ -303,13 +303,17 @@ end
 
 local function apply_chain(sc_name, target_id, starter)
     local now = os.clock()
-    local prev = chain and chain.props and chain.props[1] or nil
+    -- Only continue a chain on the SAME enemy. Another enemy's chain must not lend its step number or its property.
+    -- A property is only compared for "complete" once a real skillchain exists (step >= 1): an opener's property list
+    -- (for example an aeonic Light listed first) is not a chain result.
+    local same = chain ~= nil and chain.target == target_id
+    local prev = (same and chain.step >= 1 and chain.props) and chain.props[1] or nil
     if is_terminal(prev, sc_name) then
         done_note = {prop = sc_name, until_time = now + DONE_NOTE_SEC}
         chain = nil
         return
     end
-    local step = (chain and chain.step or 0) + 1
+    local step = (same and chain.step or 0) + 1
     chain = {props = {sc_name}, step = step, t0 = now, expire = now + window_sec(step), target = target_id, starter = starter}
     done_note = nil
 end
@@ -669,8 +673,15 @@ windower.register_event("prerender", function()
     end
 end)
 
+-- Only categories 3 (weapon skill finish) and 11 (monster/trust TP move) are used. The category is 4 bits at bit 2-5 of
+-- byte 0x0A (0-based), so it is read from the raw bytes and everything else (melee, magic, items, job abilities ...)
+-- is dropped before the expensive packets.parse.
+local ACTION_CATEGORIES = {[3] = true, [11] = true}
+
 windower.register_event("incoming chunk", function(id, data)
     if id ~= 0x028 then return end
+    local b = data and data:byte(11)
+    if not b or not ACTION_CATEGORIES[math.floor(b / 4) % 16] then return end
     local ok, err = pcall(on_action, data)
     if not ok then chat("[ChainGuide] packet error: " .. tostring(err):match("^[^\n]*"), 123) end
 end)
